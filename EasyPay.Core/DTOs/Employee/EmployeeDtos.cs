@@ -52,16 +52,24 @@ public class CreateEmployeeDto
 
     public string? Address { get; set; }
 
-    // Credentials for user account creation
+   
     [Required(ErrorMessage = "Username is required.")]
     public string Username { get; set; } = string.Empty;
 
-    [Required(ErrorMessage = "Password is required.")]
-    [MinLength(6, ErrorMessage = "Password must be at least 6 characters.")]
-    public string Password { get; set; } = string.Empty;
+
+    public string? Password { get; set; }
 
     [Required(ErrorMessage = "Role is required.")]
     public string RoleName { get; set; } = "Employee";
+}
+
+
+public class CreateEmployeeResponseDto
+{
+    public EmployeeDto Employee { get; set; } = null!;
+    public string TemporaryPassword { get; set; } = string.Empty;
+    public string Message { get; set; } =
+        "Employee created. Share the temporary password with the employee — it will not be shown again.";
 }
 
 public class UpdateEmployeeDto

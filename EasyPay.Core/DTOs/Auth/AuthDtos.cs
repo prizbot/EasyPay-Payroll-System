@@ -20,10 +20,22 @@ public class LoginResponseDto
     public int EmployeeId { get; set; }
     public string FullName { get; set; } = string.Empty;
     public DateTime ExpiresAt { get; set; }
+    
+    public bool MustChangePassword { get; set; }
 }
 
 public class RefreshTokenRequestDto
 {
     [Required]
     public string RefreshToken { get; set; } = string.Empty;
+}
+
+public class ChangePasswordDto
+{
+    [Required(ErrorMessage = "Current password is required.")]
+    public string CurrentPassword { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "New password is required.")]
+    [MinLength(8, ErrorMessage = "New password must be at least 8 characters.")]
+    public string NewPassword { get; set; } = string.Empty;
 }

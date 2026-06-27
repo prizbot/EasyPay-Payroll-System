@@ -12,7 +12,7 @@ namespace EasyPay.Infrastructure.Services;
 public class JwtService : IJwtService
 {
     private readonly IConfiguration _configuration;
-
+    
     public JwtService(IConfiguration configuration)
     {
         _configuration = configuration;
@@ -20,7 +20,7 @@ public class JwtService : IJwtService
 
     public string GenerateAccessToken(UserAccount user, Employee employee)
     {
-        var key        = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]!));
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]!));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
         var claims = new[]
@@ -30,6 +30,8 @@ public class JwtService : IJwtService
             new Claim(ClaimTypes.Role,           user.RoleName),
             new Claim("EmployeeId",              employee.EmployeeId.ToString()),
             new Claim("FullName",                $"{employee.FirstName} {employee.LastName}"),
+            
+            new Claim("MustChangePassword",      user.MustChangePassword.ToString().ToLower()),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 
@@ -37,10 +39,10 @@ public class JwtService : IJwtService
             double.Parse(_configuration["Jwt:ExpiryHours"] ?? "8"));
 
         var token = new JwtSecurityToken(
-            issuer:            _configuration["Jwt:Issuer"],
-            audience:          _configuration["Jwt:Audience"],
-            claims:            claims,
-            expires:           expiry,
+            issuer: _configuration["Jwt:Issuer"],
+            audience: _configuration["Jwt:Audience"],
+            claims: claims,
+            expires: expiry,
             signingCredentials: credentials
         );
 
@@ -60,8 +62,8 @@ public class JwtService : IJwtService
         var handler = new JwtSecurityTokenHandler();
         if (!handler.CanReadToken(token)) return null;
 
-        var jwt    = handler.ReadJwtToken(token);
-        var claim  = jwt.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier);
+        var jwt = handler.ReadJwtToken(token);
+        var claim = jwt.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier);
         return claim != null && int.TryParse(claim.Value, out var id) ? id : null;
     }
 }

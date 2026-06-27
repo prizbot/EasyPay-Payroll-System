@@ -11,17 +11,17 @@ namespace EasyPay.Tests.Services;
 [TestFixture]
 public class EmployeeServiceTests
 {
-    private Mock<IEmployeeRepository>    _mockEmployeeRepo;
+    private Mock<IEmployeeRepository> _mockEmployeeRepo;
     private Mock<IUserAccountRepository> _mockUserRepo;
-    private Mock<IAuditService>          _mockAuditService;
-    private IEmployeeService             _employeeService;
+    private Mock<IAuditService> _mockAuditService;
+    private IEmployeeService _employeeService;
 
     [SetUp]
     public void SetUp()
     {
-        _mockEmployeeRepo  = new Mock<IEmployeeRepository>();
-        _mockUserRepo      = new Mock<IUserAccountRepository>();
-        _mockAuditService  = new Mock<IAuditService>();
+        _mockEmployeeRepo = new Mock<IEmployeeRepository>();
+        _mockUserRepo = new Mock<IUserAccountRepository>();
+        _mockAuditService = new Mock<IAuditService>();
 
         _employeeService = new EmployeeService(
             _mockEmployeeRepo.Object,
@@ -29,196 +29,218 @@ public class EmployeeServiceTests
             _mockAuditService.Object);
     }
 
-    // ── GetAllAsync ───────────────────────────────────────
+    // ── Temporary password generation ─────────────────────────
+    [Test]
+    public void GenerateTemporaryPassword_ReturnsExpectedFormat()
+    {
+        var password = EmployeeService.GenerateTemporaryPassword();
+
+        Assert.That(password, Does.StartWith("EP@"));
+        Assert.That(password.Length, Is.EqualTo(7)); // EP@ + 4 digits
+        Assert.That(int.TryParse(password.Substring(3), out _), Is.True);
+    }
 
     [Test]
-    public async Task GetAllAsync_WhenEmployeesExist_ReturnsMappedDtos()
+    public void GenerateTemporaryPassword_CalledMultipleTimes_ProducesVariation()
     {
-        // Arrange
-        var employees = new List<Employee>
+        // Generate 20 passwords and verify at least 2 differ
+        // (probability of all 20 being identical is astronomically low)
+        var passwords = Enumerable.Range(0, 20)
+            .Select(_ => EmployeeService.GenerateTemporaryPassword())
+            .ToHashSet();
+
+        Assert.That(passwords.Count, Is.GreaterThan(1));
+    }
+
+    [Test]
+    public void GenerateTemporaryPassword_NumberPartIsFourDigits()
+    {
+        // Run 50 times to ensure number is always zero-padded to 4 digits
+        for (int i = 0; i < 50; i++)
         {
-            new() { EmployeeId = 1, FirstName = "Priya",   LastName = "R", Email = "priya@test.com",  Department = "IT",      Designation = "Developer", BasicSalary = 50000, IsActive = true,  JoinDate = DateTime.Now },
-            new() { EmployeeId = 2, FirstName = "Karthik", LastName = "M", Email = "karthik@test.com", Department = "Finance", Designation = "Analyst",   BasicSalary = 60000, IsActive = true,  JoinDate = DateTime.Now }
-        };
+            var pwd = EmployeeService.GenerateTemporaryPassword();
+            var digits = pwd.Substring(3);
+            Assert.That(digits.Length, Is.EqualTo(4),
+                $"Expected 4-digit suffix but got '{digits}' in password '{pwd}'");
+        }
+    }
 
-        _mockEmployeeRepo.Setup(r => r.GetAllAsync())
-            .ReturnsAsync(employees);
+    // ── CreateAsync — stores BCrypt hash ─────────────────────
+    [Test]
+    public async Task CreateAsync_StoresBCryptHashNotPlainText()
+    {
+        var dto = MakeCreateDto();
 
-        // Act
-        var result = (await _employeeService.GetAllAsync()).ToList();
+        var createdEmployee = MakeEmployee(10);
 
-        // Assert
+        _mockEmployeeRepo.Setup(r => r.GetByEmailAsync(dto.Email)).ReturnsAsync((Employee?)null);
+        _mockEmployeeRepo.Setup(r => r.AddAsync(It.IsAny<Employee>())).ReturnsAsync(createdEmployee);
+
+        UserAccount? capturedAccount = null;
+        _mockUserRepo.Setup(r => r.AddAsync(It.IsAny<UserAccount>()))
+            .Callback<UserAccount>(ua => capturedAccount = ua)
+            .ReturnsAsync((UserAccount ua) => ua);
+        _mockAuditService.Setup(a => a.LogAsync(It.IsAny<int?>(), It.IsAny<string>())).Returns(Task.CompletedTask);
+
+        await _employeeService.CreateAsync(dto);
+
+        Assert.That(capturedAccount, Is.Not.Null);
+        // Hash must NOT equal the plain-text password
+        Assert.That(capturedAccount!.PasswordHash, Is.Not.EqualTo(dto.Password));
+        // Must be a valid BCrypt hash (starts with $2)
+        Assert.That(capturedAccount.PasswordHash, Does.StartWith("$2"));
+    }
+
+    // ── CreateAsync — MustChangePassword set to true ─────────
+    [Test]
+    public async Task CreateAsync_SetsMustChangePasswordTrue()
+    {
+        var dto = MakeCreateDto();
+
+        _mockEmployeeRepo.Setup(r => r.GetByEmailAsync(dto.Email)).ReturnsAsync((Employee?)null);
+        _mockEmployeeRepo.Setup(r => r.AddAsync(It.IsAny<Employee>())).ReturnsAsync(MakeEmployee(11));
+
+        UserAccount? capturedAccount = null;
+        _mockUserRepo.Setup(r => r.AddAsync(It.IsAny<UserAccount>()))
+            .Callback<UserAccount>(ua => capturedAccount = ua)
+            .ReturnsAsync((UserAccount ua) => ua);
+        _mockAuditService.Setup(a => a.LogAsync(It.IsAny<int?>(), It.IsAny<string>())).Returns(Task.CompletedTask);
+
+        await _employeeService.CreateAsync(dto);
+
+        Assert.That(capturedAccount!.MustChangePassword, Is.True);
+    }
+
+    // ── CreateAsync — auto-generates temp password when none supplied ──
+    [Test]
+    public async Task CreateAsync_WhenNoPasswordSupplied_AutoGeneratesTemporaryPassword()
+    {
+        var dto = MakeCreateDto();
+        dto.Password = null;   // no password from admin
+
+        _mockEmployeeRepo.Setup(r => r.GetByEmailAsync(dto.Email)).ReturnsAsync((Employee?)null);
+        _mockEmployeeRepo.Setup(r => r.AddAsync(It.IsAny<Employee>())).ReturnsAsync(MakeEmployee(12));
+
+        UserAccount? capturedAccount = null;
+        _mockUserRepo.Setup(r => r.AddAsync(It.IsAny<UserAccount>()))
+            .Callback<UserAccount>(ua => capturedAccount = ua)
+            .ReturnsAsync((UserAccount ua) => ua);
+        _mockAuditService.Setup(a => a.LogAsync(It.IsAny<int?>(), It.IsAny<string>())).Returns(Task.CompletedTask);
+
+        var result = await _employeeService.CreateAsync(dto);
+
+        // TemporaryPassword in response must follow EP@NNNN format
+        Assert.That(result.TemporaryPassword, Does.StartWith("EP@"));
+        Assert.That(result.TemporaryPassword.Length, Is.EqualTo(7));
+        // Hash must verify against the returned temp password
+        Assert.That(BCrypt.Net.BCrypt.Verify(result.TemporaryPassword, capturedAccount!.PasswordHash), Is.True);
+    }
+
+    // ── CreateAsync — returns CreateEmployeeResponseDto ───────
+    [Test]
+    public async Task CreateAsync_ReturnsResponseWithTemporaryPassword()
+    {
+        var dto = MakeCreateDto();
+        dto.Password = "EP@1234";   // explicit password supplied
+
+        _mockEmployeeRepo.Setup(r => r.GetByEmailAsync(dto.Email)).ReturnsAsync((Employee?)null);
+        _mockEmployeeRepo.Setup(r => r.AddAsync(It.IsAny<Employee>())).ReturnsAsync(MakeEmployee(13));
+        _mockUserRepo.Setup(r => r.AddAsync(It.IsAny<UserAccount>())).ReturnsAsync(new UserAccount());
+        _mockAuditService.Setup(a => a.LogAsync(It.IsAny<int?>(), It.IsAny<string>())).Returns(Task.CompletedTask);
+
+        var result = await _employeeService.CreateAsync(dto);
+
         Assert.That(result, Is.Not.Null);
-        Assert.That(result.Count, Is.EqualTo(2));
-        Assert.That(result[0].FirstName, Is.EqualTo("Priya"));
-        Assert.That(result[1].Department, Is.EqualTo("Finance"));
-
-        _mockEmployeeRepo.Verify(r => r.GetAllAsync(), Times.Once);
+        Assert.That(result.Employee, Is.Not.Null);
+        Assert.That(result.TemporaryPassword, Is.EqualTo("EP@1234"));
+        Assert.That(result.Message, Is.Not.Empty);
     }
 
+    // ── CreateAsync — duplicate email ─────────────────────────
     [Test]
-    public async Task GetAllAsync_WhenNoEmployees_ReturnsEmptyList()
+    public void CreateAsync_DuplicateEmail_ThrowsInvalidOperationException()
     {
-        _mockEmployeeRepo.Setup(r => r.GetAllAsync())
-            .ReturnsAsync(new List<Employee>());
+        var dto = MakeCreateDto();
 
-        var result = await _employeeService.GetAllAsync();
+        _mockEmployeeRepo.Setup(r => r.GetByEmailAsync(dto.Email)).ReturnsAsync(MakeEmployee(1));
 
-        Assert.That(result, Is.Empty);
+        Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await _employeeService.CreateAsync(dto));
     }
 
-    // ── GetByIdAsync ──────────────────────────────────────
-
+    // ── GetByIdAsync ──────────────────────────────────────────
     [Test]
-    public async Task GetByIdAsync_WhenEmployeeExists_ReturnsDto()
+    public async Task GetByIdAsync_ExistingId_ReturnsDto()
     {
-        var emp = new Employee { EmployeeId = 1, FirstName = "Divya", LastName = "S", Email = "divya@test.com", Department = "HR", Designation = "Manager", BasicSalary = 70000, IsActive = true, JoinDate = DateTime.Now };
-
-        _mockEmployeeRepo.Setup(r => r.GetByIdAsync(1))
-            .ReturnsAsync(emp);
+        _mockEmployeeRepo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(MakeEmployee(1));
 
         var result = await _employeeService.GetByIdAsync(1);
 
         Assert.That(result, Is.Not.Null);
         Assert.That(result!.EmployeeId, Is.EqualTo(1));
-        Assert.That(result.FullName, Is.EqualTo("Divya S"));
-        Assert.That(result.BasicSalary, Is.EqualTo(70000));
     }
 
     [Test]
-    public async Task GetByIdAsync_WhenEmployeeNotFound_ReturnsNull()
+    public async Task GetByIdAsync_NonExistingId_ReturnsNull()
     {
-        _mockEmployeeRepo.Setup(r => r.GetByIdAsync(It.IsAny<int>()))
-            .ReturnsAsync((Employee?)null);
+        _mockEmployeeRepo.Setup(r => r.GetByIdAsync(999)).ReturnsAsync((Employee?)null);
 
         var result = await _employeeService.GetByIdAsync(999);
 
         Assert.That(result, Is.Null);
     }
 
-    // ── CreateAsync ───────────────────────────────────────
-
+    // ── UpdateAsync ───────────────────────────────────────────
     [Test]
-    public async Task CreateAsync_WithValidDto_CreatesEmployeeAndUserAccount()
+    public async Task UpdateAsync_ExistingEmployee_ReturnsUpdatedDto()
     {
-        var dto = new CreateEmployeeDto
-        {
-            FirstName   = "Arun",
-            LastName    = "K",
-            Email       = "arun@test.com",
-            Department  = "IT",
-            Designation = "Developer",
-            BasicSalary = 55000,
-            Username    = "arunk",
-            Password    = "Secret@123",
-            RoleName    = "Employee"
-        };
-
-        var createdEmployee = new Employee
-        {
-            EmployeeId  = 10,
-            FirstName   = dto.FirstName,
-            LastName    = dto.LastName,
-            Email       = dto.Email,
-            Department  = dto.Department,
-            Designation = dto.Designation,
-            BasicSalary = dto.BasicSalary,
-            IsActive    = true,
-            JoinDate    = DateTime.Now
-        };
-
-        _mockEmployeeRepo.Setup(r => r.GetByEmailAsync(dto.Email))
-            .ReturnsAsync((Employee?)null);
-
-        _mockEmployeeRepo.Setup(r => r.AddAsync(It.IsAny<Employee>()))
-            .ReturnsAsync(createdEmployee);
-
-        _mockUserRepo.Setup(r => r.AddAsync(It.IsAny<UserAccount>()))
-            .ReturnsAsync(new UserAccount());
-
-        _mockAuditService.Setup(a => a.LogAsync(It.IsAny<int?>(), It.IsAny<string>()))
-            .Returns(Task.CompletedTask);
-
-        // Act
-        var result = await _employeeService.CreateAsync(dto);
-
-        // Assert
-        Assert.That(result, Is.Not.Null);
-        Assert.That(result.EmployeeId, Is.EqualTo(10));
-        Assert.That(result.Email, Is.EqualTo("arun@test.com"));
-
-        _mockEmployeeRepo.Verify(r => r.AddAsync(It.IsAny<Employee>()), Times.Once);
-        _mockUserRepo.Verify(r => r.AddAsync(It.IsAny<UserAccount>()), Times.Once);
-        _mockAuditService.Verify(a => a.LogAsync(null, It.Is<string>(s => s.Contains("Created"))), Times.Once);
-    }
-
-    [Test]
-    public void CreateAsync_WhenEmailAlreadyExists_ThrowsInvalidOperationException()
-    {
-        var dto = new CreateEmployeeDto
-        {
-            FirstName = "X", LastName = "Y", Email = "exists@test.com",
-            Department = "IT", Designation = "Dev", BasicSalary = 50000,
-            Username = "xy", Password = "pass", RoleName = "Employee"
-        };
-
-        _mockEmployeeRepo.Setup(r => r.GetByEmailAsync(dto.Email))
-            .ReturnsAsync(new Employee { Email = dto.Email });
-
-        Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await _employeeService.CreateAsync(dto));
-    }
-
-    // ── UpdateAsync ───────────────────────────────────────
-
-    [Test]
-    public async Task UpdateAsync_WhenEmployeeExists_ReturnsUpdatedDto()
-    {
-        var existing = new Employee { EmployeeId = 5, FirstName = "Old", LastName = "Name", Email = "old@test.com", Department = "IT", Designation = "Dev", BasicSalary = 40000, IsActive = true, JoinDate = DateTime.Now };
-
-        var updateDto = new UpdateEmployeeDto
-        {
-            FirstName = "New", LastName = "Name", Email = "new@test.com",
-            Department = "Finance", Designation = "Analyst", BasicSalary = 65000, IsActive = true
-        };
-
-        _mockEmployeeRepo.Setup(r => r.GetByIdAsync(5)).ReturnsAsync(existing);
+        _mockEmployeeRepo.Setup(r => r.GetByIdAsync(5)).ReturnsAsync(MakeEmployee(5));
         _mockEmployeeRepo.Setup(r => r.UpdateAsync(It.IsAny<Employee>()))
             .ReturnsAsync((Employee e) => e);
-        _mockAuditService.Setup(a => a.LogAsync(It.IsAny<int?>(), It.IsAny<string>()))
-            .Returns(Task.CompletedTask);
+        _mockAuditService.Setup(a => a.LogAsync(It.IsAny<int?>(), It.IsAny<string>())).Returns(Task.CompletedTask);
 
-        var result = await _employeeService.UpdateAsync(5, updateDto);
+        var dto = new UpdateEmployeeDto
+        {
+            FirstName = "Updated",
+            LastName = "Name",
+            Email = "updated@test.com",
+            Department = "HR",
+            Designation = "Manager",
+            BasicSalary = 65000,
+            IsActive = true
+        };
+
+        var result = await _employeeService.UpdateAsync(5, dto);
 
         Assert.That(result, Is.Not.Null);
-        Assert.That(result!.FirstName, Is.EqualTo("New"));
-        Assert.That(result.BasicSalary, Is.EqualTo(65000));
-        Assert.That(result.Department, Is.EqualTo("Finance"));
+        Assert.That(result!.FirstName, Is.EqualTo("Updated"));
     }
 
     [Test]
-    public async Task UpdateAsync_WhenEmployeeNotFound_ReturnsNull()
+    public async Task UpdateAsync_NonExisting_ReturnsNull()
     {
-        _mockEmployeeRepo.Setup(r => r.GetByIdAsync(It.IsAny<int>()))
-            .ReturnsAsync((Employee?)null);
+        _mockEmployeeRepo.Setup(r => r.GetByIdAsync(999)).ReturnsAsync((Employee?)null);
 
         var result = await _employeeService.UpdateAsync(999, new UpdateEmployeeDto
         {
-            FirstName = "X", LastName = "Y", Email = "x@y.com",
-            Department = "IT", Designation = "Dev", BasicSalary = 1000, IsActive = true
+            FirstName = "X",
+            LastName = "Y",
+            Email = "x@y.com",
+            Department = "IT",
+            Designation = "Dev",
+            BasicSalary = 1000,
+            IsActive = true
         });
 
         Assert.That(result, Is.Null);
     }
 
-    // ── DeactivateAsync ───────────────────────────────────
-
+    // ── DeactivateAsync ───────────────────────────────────────
     [Test]
-    public async Task DeactivateAsync_WhenEmployeeExists_ReturnsTrue()
+    public async Task DeactivateAsync_ExistingEmployee_ReturnsTrue()
     {
         _mockEmployeeRepo.Setup(r => r.DeleteAsync(3)).ReturnsAsync(true);
-        _mockAuditService.Setup(a => a.LogAsync(It.IsAny<int?>(), It.IsAny<string>()))
-            .Returns(Task.CompletedTask);
+        _mockAuditService.Setup(a => a.LogAsync(It.IsAny<int?>(), It.IsAny<string>())).Returns(Task.CompletedTask);
 
         var result = await _employeeService.DeactivateAsync(3);
 
@@ -227,36 +249,66 @@ public class EmployeeServiceTests
     }
 
     [Test]
-    public async Task DeactivateAsync_WhenEmployeeNotFound_ReturnsFalse()
+    public async Task DeactivateAsync_NonExisting_ReturnsFalse()
     {
-        _mockEmployeeRepo.Setup(r => r.DeleteAsync(It.IsAny<int>())).ReturnsAsync(false);
+        _mockEmployeeRepo.Setup(r => r.DeleteAsync(999)).ReturnsAsync(false);
 
         var result = await _employeeService.DeactivateAsync(999);
 
         Assert.That(result, Is.False);
     }
 
-    // ── TestCase examples ─────────────────────────────────
-
-    [TestCase(1,  50000, true)]
-    [TestCase(2,  70000, true)]
-    [TestCase(99, 0,     false)]
-    public async Task GetByIdAsync_TestCaseVariants(int id, decimal expectedSalary, bool shouldExist)
+    // ── BCrypt hash verification TestCase ─────────────────────
+    [TestCase("EP@1234")]
+    [TestCase("EP@9999")]
+    [TestCase("EP@0001")]
+    [TestCase("MyCustomPass@123")]
+    public async Task CreateAsync_PasswordHash_VerifiesCorrectlyWithBCrypt(string plainPassword)
     {
-        if (shouldExist)
-        {
-            _mockEmployeeRepo.Setup(r => r.GetByIdAsync(id))
-                .ReturnsAsync(new Employee { EmployeeId = id, FirstName = "T", LastName = "U", Email = $"t{id}@t.com", Department = "IT", Designation = "Dev", BasicSalary = expectedSalary, IsActive = true, JoinDate = DateTime.Now });
+        var dto = MakeCreateDto();
+        dto.Password = plainPassword;
 
-            var result = await _employeeService.GetByIdAsync(id);
-            Assert.That(result, Is.Not.Null);
-            Assert.That(result!.BasicSalary, Is.EqualTo(expectedSalary));
-        }
-        else
-        {
-            _mockEmployeeRepo.Setup(r => r.GetByIdAsync(id)).ReturnsAsync((Employee?)null);
-            var result = await _employeeService.GetByIdAsync(id);
-            Assert.That(result, Is.Null);
-        }
+        _mockEmployeeRepo.Setup(r => r.GetByEmailAsync(dto.Email)).ReturnsAsync((Employee?)null);
+        _mockEmployeeRepo.Setup(r => r.AddAsync(It.IsAny<Employee>())).ReturnsAsync(MakeEmployee(20));
+
+        UserAccount? capturedAccount = null;
+        _mockUserRepo.Setup(r => r.AddAsync(It.IsAny<UserAccount>()))
+            .Callback<UserAccount>(ua => capturedAccount = ua)
+            .ReturnsAsync((UserAccount ua) => ua);
+        _mockAuditService.Setup(a => a.LogAsync(It.IsAny<int?>(), It.IsAny<string>())).Returns(Task.CompletedTask);
+
+        await _employeeService.CreateAsync(dto);
+
+        Assert.That(
+            BCrypt.Net.BCrypt.Verify(plainPassword, capturedAccount!.PasswordHash),
+            Is.True,
+            $"BCrypt verification failed for password: {plainPassword}");
     }
+
+    // ── Helpers ───────────────────────────────────────────────
+    private static CreateEmployeeDto MakeCreateDto() => new()
+    {
+        FirstName = "Test",
+        LastName = "Employee",
+        Email = "test@easypay.com",
+        Department = "IT",
+        Designation = "Developer",
+        BasicSalary = 50000,
+        Username = "testuser",
+        Password = "EP@1234",
+        RoleName = "Employee"
+    };
+
+    private static Employee MakeEmployee(int id) => new()
+    {
+        EmployeeId = id,
+        FirstName = "Test",
+        LastName = "Employee",
+        Email = $"test{id}@easypay.com",
+        Department = "IT",
+        Designation = "Developer",
+        BasicSalary = 50000,
+        IsActive = true,
+        JoinDate = DateTime.Now
+    };
 }

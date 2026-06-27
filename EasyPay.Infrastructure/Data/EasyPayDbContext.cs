@@ -7,16 +7,16 @@ public class EasyPayDbContext : DbContext
 {
     public EasyPayDbContext(DbContextOptions<EasyPayDbContext> options) : base(options) { }
 
-    public DbSet<Employee>        Employees        { get; set; }
-    public DbSet<UserAccount>     UserAccounts     { get; set; }
-    public DbSet<Attendance>      Attendances      { get; set; }
-    public DbSet<LeaveRequest>    LeaveRequests    { get; set; }
-    public DbSet<Payroll>         Payrolls         { get; set; }
-    public DbSet<PayStub>         PayStubs         { get; set; }
-    public DbSet<Benefit>         Benefits         { get; set; }
+    public DbSet<Employee> Employees { get; set; }
+    public DbSet<UserAccount> UserAccounts { get; set; }
+    public DbSet<Attendance> Attendances { get; set; }
+    public DbSet<LeaveRequest> LeaveRequests { get; set; }
+    public DbSet<Payroll> Payrolls { get; set; }
+    public DbSet<PayStub> PayStubs { get; set; }
+    public DbSet<Benefit> Benefits { get; set; }
     public DbSet<EmployeeBenefit> EmployeeBenefits { get; set; }
-    public DbSet<AuditLog>        AuditLogs        { get; set; }
-    public DbSet<Notification>    Notifications    { get; set; }
+    public DbSet<AuditLog> AuditLogs { get; set; }
+    public DbSet<Notification> Notifications { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -52,6 +52,8 @@ public class EasyPayDbContext : DbContext
             e.Property(x => x.PasswordHash).HasMaxLength(255).IsRequired();
             e.Property(x => x.RoleName).HasMaxLength(30).IsRequired();
             e.Property(x => x.RefreshToken).HasMaxLength(500);
+            e.Property(x => x.MustChangePassword).HasDefaultValue(true);
+
             e.HasOne(x => x.Employee)
              .WithOne(x => x.UserAccount)
              .HasForeignKey<UserAccount>(x => x.EmployeeId)

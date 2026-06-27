@@ -2,7 +2,7 @@ using Serilog;
 using EasyPay.API.Extensions;
 using EasyPay.API.Middleware;
 
-// ── Bootstrap logger before host builds ───────────────────
+// ── Bootstrap logger before host builds ───────────────────────
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
     .CreateBootstrapLogger();
@@ -11,43 +11,43 @@ try
 {
     var builder = WebApplication.CreateBuilder(args);
 
-    // ── Serilog ───────────────────────────────────────────
+    // ── Serilog ───────────────────────────────────────────────
     builder.Host.UseSerilog((ctx, lc) => lc
         .ReadFrom.Configuration(ctx.Configuration)
         .Enrich.FromLogContext()
         .WriteTo.Console()
         .WriteTo.File("logs/easypay-.log",
-            rollingInterval:    RollingInterval.Day,
+            rollingInterval: RollingInterval.Day,
             retainedFileCountLimit: 30));
 
-    // ── Database ──────────────────────────────────────────
+    // ── Database ──────────────────────────────────────────────
     builder.Services.AddDatabase(builder.Configuration);
 
-    // ── Repositories + Services ───────────────────────────
+    // ── Repositories + Services ───────────────────────────────
     builder.Services.AddRepositories();
     builder.Services.AddApplicationServices();
 
-    // ── JWT ───────────────────────────────────────────────
+    // ── JWT ───────────────────────────────────────────────────
     builder.Services.AddJwtAuthentication(builder.Configuration);
 
-    // ── API Versioning ────────────────────────────────────
+    // ── API Versioning ────────────────────────────────────────
     builder.Services.AddApiVersioning(o =>
     {
-        o.DefaultApiVersion                = new Microsoft.AspNetCore.Mvc.ApiVersion(1, 0);
+        o.DefaultApiVersion = new Microsoft.AspNetCore.Mvc.ApiVersion(1, 0);
         o.AssumeDefaultVersionWhenUnspecified = true;
-        o.ReportApiVersions                = true;
+        o.ReportApiVersions = true;
     });
 
     builder.Services.AddVersionedApiExplorer(o =>
     {
-        o.GroupNameFormat           = "'v'VVV";
+        o.GroupNameFormat = "'v'VVV";
         o.SubstituteApiVersionInUrl = true;
     });
 
-    // ── Controllers ───────────────────────────────────────
+    // ── Controllers ───────────────────────────────────────────
     builder.Services.AddControllers();
 
-    // ── CORS ──────────────────────────────────────────────
+    // ── CORS ──────────────────────────────────────────────────
     builder.Services.AddCors(options =>
     {
         options.AddPolicy("EasyPayCors", policy =>
@@ -59,14 +59,14 @@ try
                   .AllowCredentials());
     });
 
-    // ── Swagger ───────────────────────────────────────────
+    // ── Swagger ───────────────────────────────────────────────
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerDocumentation();
 
-    // ── Build app ─────────────────────────────────────────
+    // ── Build app ─────────────────────────────────────────────
     var app = builder.Build();
 
-    // ── Middleware pipeline ───────────────────────────────
+
     app.UseMiddleware<GlobalExceptionMiddleware>();
     app.UseSerilogRequestLogging();
 
@@ -77,6 +77,7 @@ try
     app.UseCors("EasyPayCors");
     app.UseAuthentication();
     app.UseAuthorization();
+    app.UseMiddleware<MustChangePasswordMiddleware>();  
     app.MapControllers();
 
     Log.Information("EasyPay API starting on {Env}", app.Environment.EnvironmentName);

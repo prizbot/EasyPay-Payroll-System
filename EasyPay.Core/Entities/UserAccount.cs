@@ -9,7 +9,9 @@ public class UserAccount
     public string RoleName { get; set; } = string.Empty;
     public string? RefreshToken { get; set; }
     public DateTime? RefreshTokenExpiry { get; set; }
+    
+    public bool MustChangePassword { get; set; } = true;
 
-    // Navigation
+  
     public virtual Employee Employee { get; set; } = null!;
 }

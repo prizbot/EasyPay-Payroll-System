@@ -14,27 +14,26 @@ public class UserAccountRepository : IUserAccountRepository
         _context = context;
     }
 
-    public async Task<UserAccount?> GetByUsernameAsync(string username)
-    {
-        return await _context.UserAccounts
+    public async Task<UserAccount?> GetByUsernameAsync(string username) =>
+        await _context.UserAccounts
             .Include(u => u.Employee)
             .AsNoTracking()
             .FirstOrDefaultAsync(u => u.Username == username);
-    }
 
-    public async Task<UserAccount?> GetByEmployeeIdAsync(int employeeId)
-    {
-        return await _context.UserAccounts
+    public async Task<UserAccount?> GetByUserIdAsync(int userId) =>
+        await _context.UserAccounts
+            .Include(u => u.Employee)
+            .FirstOrDefaultAsync(u => u.UserId == userId);
+
+    public async Task<UserAccount?> GetByEmployeeIdAsync(int employeeId) =>
+        await _context.UserAccounts
             .AsNoTracking()
             .FirstOrDefaultAsync(u => u.EmployeeId == employeeId);
-    }
 
-    public async Task<UserAccount?> GetByRefreshTokenAsync(string refreshToken)
-    {
-        return await _context.UserAccounts
+    public async Task<UserAccount?> GetByRefreshTokenAsync(string refreshToken) =>
+        await _context.UserAccounts
             .Include(u => u.Employee)
             .FirstOrDefaultAsync(u => u.RefreshToken == refreshToken);
-    }
 
     public async Task<UserAccount> AddAsync(UserAccount userAccount)
     {
