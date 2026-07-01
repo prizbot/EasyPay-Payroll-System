@@ -2,6 +2,52 @@ using System.ComponentModel.DataAnnotations;
 
 namespace EasyPay.Core.DTOs.Leave;
 
+
+public class LeaveTypeDto
+{
+    public int LeaveTypeId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public bool IsPaid { get; set; }
+    public int AnnualAllowance { get; set; }
+    public string? Description { get; set; }
+    public bool IsActive { get; set; }
+}
+
+public class CreateLeaveTypeDto
+{
+    [Required(ErrorMessage = "Leave type name is required.")]
+    [StringLength(50, ErrorMessage = "Name cannot exceed 50 characters.")]
+    public string Name { get; set; } = string.Empty;
+
+    public bool IsPaid { get; set; } = true;
+
+    [Range(0, 365, ErrorMessage = "Annual allowance must be between 0 and 365.")]
+    public int AnnualAllowance { get; set; }
+
+    [StringLength(200)]
+    public string? Description { get; set; }
+
+    public bool IsActive { get; set; } = true;
+}
+
+public class UpdateLeaveTypeDto
+{
+    [Required(ErrorMessage = "Leave type name is required.")]
+    [StringLength(50)]
+    public string Name { get; set; } = string.Empty;
+
+    public bool IsPaid { get; set; }
+
+    [Range(0, 365)]
+    public int AnnualAllowance { get; set; }
+
+    [StringLength(200)]
+    public string? Description { get; set; }
+
+    public bool IsActive { get; set; }
+}
+
+
 public class LeaveRequestDto
 {
     public int LeaveId { get; set; }
@@ -10,7 +56,9 @@ public class LeaveRequestDto
     public DateTime StartDate { get; set; }
     public DateTime EndDate { get; set; }
     public int TotalDays => (EndDate - StartDate).Days + 1;
-    public string? LeaveType { get; set; }
+    public int LeaveTypeId { get; set; }
+    public string LeaveTypeName { get; set; } = string.Empty;
+    public bool IsPaid { get; set; }
     public string? Reason { get; set; }
     public string Status { get; set; } = string.Empty;
 }
@@ -28,7 +76,8 @@ public class CreateLeaveRequestDto
     public DateTime EndDate { get; set; }
 
     [Required(ErrorMessage = "Leave type is required.")]
-    public string LeaveType { get; set; } = string.Empty;
+    [Range(1, int.MaxValue, ErrorMessage = "Please select a valid leave type.")]
+    public int LeaveTypeId { get; set; }
 
     [StringLength(200)]
     public string? Reason { get; set; }

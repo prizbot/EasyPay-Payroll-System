@@ -11,8 +11,6 @@ public interface ILeaveRepository
     Task<LeaveRequest> AddAsync(LeaveRequest leaveRequest);
     Task<LeaveRequest> UpdateAsync(LeaveRequest leaveRequest);
     Task<int> GetPendingCountAsync();
-    /// <summary>Check if any non-Rejected leave overlaps with the given date range</summary>
     Task<bool> HasOverlapAsync(int employeeId, DateTime startDate, DateTime endDate, int? excludeLeaveId = null);
-    /// <summary>Find approved leave covering a specific date (for attendance block)</summary>
     Task<bool> HasApprovedLeaveOnDateAsync(int employeeId, DateTime date);
 }

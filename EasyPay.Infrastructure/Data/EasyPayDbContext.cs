@@ -10,6 +10,7 @@ public class EasyPayDbContext : DbContext
     public DbSet<Employee> Employees { get; set; }
     public DbSet<UserAccount> UserAccounts { get; set; }
     public DbSet<Attendance> Attendances { get; set; }
+    public DbSet<LeaveType> LeaveTypes { get; set; }
     public DbSet<LeaveRequest> LeaveRequests { get; set; }
     public DbSet<Payroll> Payrolls { get; set; }
     public DbSet<PayStub> PayStubs { get; set; }
@@ -53,7 +54,6 @@ public class EasyPayDbContext : DbContext
             e.Property(x => x.RoleName).HasMaxLength(30).IsRequired();
             e.Property(x => x.RefreshToken).HasMaxLength(500);
             e.Property(x => x.MustChangePassword).HasDefaultValue(true);
-
             e.HasOne(x => x.Employee)
              .WithOne(x => x.UserAccount)
              .HasForeignKey<UserAccount>(x => x.EmployeeId)
@@ -72,18 +72,36 @@ public class EasyPayDbContext : DbContext
              .OnDelete(DeleteBehavior.Cascade);
         });
 
+        // ── LeaveType ─────────────────────────────────────────────
+        modelBuilder.Entity<LeaveType>(e =>
+        {
+            e.ToTable("LeaveType");
+            e.HasKey(x => x.LeaveTypeId);
+            e.Property(x => x.Name).HasMaxLength(50).IsRequired();
+            e.Property(x => x.IsPaid).HasDefaultValue(true);
+            e.Property(x => x.AnnualAllowance).HasDefaultValue(0);
+            e.Property(x => x.Description).HasMaxLength(200);
+            e.Property(x => x.IsActive).HasDefaultValue(true);
+        });
+
         // ── LeaveRequest ──────────────────────────────────────────
         modelBuilder.Entity<LeaveRequest>(e =>
         {
             e.ToTable("LeaveRequest");
             e.HasKey(x => x.LeaveId);
-            e.Property(x => x.LeaveType).HasMaxLength(30);
+            e.Property(x => x.LeaveType).HasMaxLength(30);  // legacy column
             e.Property(x => x.Reason).HasMaxLength(200);
             e.Property(x => x.Status).HasMaxLength(20).HasDefaultValue("Pending");
+
             e.HasOne(x => x.Employee)
              .WithMany(x => x.LeaveRequests)
              .HasForeignKey(x => x.EmployeeId)
              .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(x => x.LeaveTypeNav)
+             .WithMany(x => x.LeaveRequests)
+             .HasForeignKey(x => x.LeaveTypeId)
+             .OnDelete(DeleteBehavior.Restrict);
         });
 
         // ── Payroll ───────────────────────────────────────────────

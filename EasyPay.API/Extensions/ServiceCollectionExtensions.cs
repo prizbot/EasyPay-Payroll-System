@@ -20,29 +20,31 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddRepositories(this IServiceCollection services)
     {
-        services.AddScoped<IEmployeeRepository,      EmployeeRepository>();
-        services.AddScoped<IUserAccountRepository,   UserAccountRepository>();
-        services.AddScoped<IAttendanceRepository,    AttendanceRepository>();
-        services.AddScoped<ILeaveRepository,         LeaveRepository>();
-        services.AddScoped<IPayrollRepository,       PayrollRepository>();
-        services.AddScoped<IBenefitRepository,       BenefitRepository>();
-        services.AddScoped<IAuditRepository,         AuditRepository>();
-        services.AddScoped<INotificationRepository,  NotificationRepository>();
+        services.AddScoped<IEmployeeRepository, EmployeeRepository>();
+        services.AddScoped<IUserAccountRepository, UserAccountRepository>();
+        services.AddScoped<IAttendanceRepository, AttendanceRepository>();
+        services.AddScoped<ILeaveTypeRepository, LeaveTypeRepository>();
+        services.AddScoped<ILeaveRepository, LeaveRepository>();
+        services.AddScoped<IPayrollRepository, PayrollRepository>();
+        services.AddScoped<IBenefitRepository, BenefitRepository>();
+        services.AddScoped<IAuditRepository, AuditRepository>();
+        services.AddScoped<INotificationRepository, NotificationRepository>();
         return services;
     }
 
     public static IServiceCollection AddApplicationServices(this IServiceCollection services)
     {
-        services.AddScoped<IJwtService,           JwtService>();
-        services.AddScoped<IAuthService,          AuthService>();
-        services.AddScoped<IEmployeeService,      EmployeeService>();
-        services.AddScoped<IAttendanceService,    AttendanceService>();
-        services.AddScoped<ILeaveService,         LeaveService>();
-        services.AddScoped<IPayrollService,       PayrollService>();
-        services.AddScoped<IBenefitService,       BenefitService>();
-        services.AddScoped<IDashboardService,     DashboardService>();
-        services.AddScoped<IAuditService,         AuditService>();
-        services.AddScoped<INotificationService,  NotificationService>();
+        services.AddScoped<IJwtService, JwtService>();
+        services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IEmployeeService, EmployeeService>();
+        services.AddScoped<IAttendanceService, AttendanceService>();
+        services.AddScoped<ILeaveTypeService, LeaveTypeService>();
+        services.AddScoped<ILeaveService, LeaveService>();
+        services.AddScoped<IPayrollService, PayrollService>();
+        services.AddScoped<IBenefitService, BenefitService>();
+        services.AddScoped<IDashboardService, DashboardService>();
+        services.AddScoped<IAuditService, AuditService>();
+        services.AddScoped<INotificationService, NotificationService>();
         return services;
     }
 }

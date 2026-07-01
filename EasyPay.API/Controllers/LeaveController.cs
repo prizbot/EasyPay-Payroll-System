@@ -20,10 +20,10 @@ public class LeaveController : ControllerBase
     public LeaveController(ILeaveService leaveService, ILogger<LeaveController> logger)
     {
         _leaveService = leaveService;
-        _logger       = logger;
+        _logger = logger;
     }
 
-    /// <summary>Get all leave requests (Admin/Manager only).</summary>
+    
     [HttpGet]
     [Authorize(Roles = $"{Roles.Admin},{Roles.Manager}")]
     public async Task<IActionResult> GetAll()
@@ -32,7 +32,7 @@ public class LeaveController : ControllerBase
         return Ok(ApiResponse<IEnumerable<LeaveRequestDto>>.Ok(leaves));
     }
 
-    /// <summary>Get leave requests by employee ID.</summary>
+    
     [HttpGet("employee/{employeeId:int}")]
     public async Task<IActionResult> GetByEmployee(int employeeId)
     {
@@ -40,7 +40,7 @@ public class LeaveController : ControllerBase
         return Ok(ApiResponse<IEnumerable<LeaveRequestDto>>.Ok(leaves));
     }
 
-    /// <summary>Get all pending leave requests.</summary>
+    
     [HttpGet("pending")]
     [Authorize(Roles = $"{Roles.Admin},{Roles.Manager}")]
     public async Task<IActionResult> GetPending()
@@ -49,7 +49,7 @@ public class LeaveController : ControllerBase
         return Ok(ApiResponse<IEnumerable<LeaveRequestDto>>.Ok(leaves));
     }
 
-    /// <summary>Submit a new leave request.</summary>
+    
     [HttpPost]
     public async Task<IActionResult> Submit([FromBody] CreateLeaveRequestDto dto)
     {
@@ -61,7 +61,7 @@ public class LeaveController : ControllerBase
         return Ok(ApiResponse<LeaveRequestDto>.Ok(leave, "Leave request submitted successfully."));
     }
 
-    /// <summary>Approve or reject a leave request.</summary>
+    
     [HttpPut("{id:int}/status")]
     [Authorize(Roles = $"{Roles.Admin},{Roles.Manager}")]
     public async Task<IActionResult> UpdateStatus(int id, [FromBody] UpdateLeaveStatusDto dto)
@@ -71,12 +71,13 @@ public class LeaveController : ControllerBase
                 ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList()));
 
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        var userId      = int.TryParse(userIdClaim, out var uid) ? uid : 0;
+        var userId = int.TryParse(userIdClaim, out var uid) ? uid : 0;
 
         var updated = await _leaveService.UpdateStatusAsync(id, dto, userId);
         if (updated == null)
             return NotFound(ApiResponse.Fail($"Leave request with ID {id} not found."));
 
-        return Ok(ApiResponse<LeaveRequestDto>.Ok(updated, $"Leave request {dto.Status} successfully."));
+        return Ok(ApiResponse<LeaveRequestDto>.Ok(updated,
+            $"Leave request {dto.Status} successfully."));
     }
 }
